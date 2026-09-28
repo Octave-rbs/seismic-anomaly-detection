@@ -1,0 +1,5 @@
+# Python >= 3.10
+numpy>=1.24
+torch>=2.0
+matplotlib>=3.7
+pyyaml>=6.0  # only needed for src/train.py
