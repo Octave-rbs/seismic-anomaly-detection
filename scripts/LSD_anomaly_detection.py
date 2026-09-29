@@ -121,8 +121,8 @@ def region_growing(mag, angle):
     return regions
 
 import numpy as np
-
-def is_region_horizontal(region, angles_matrix, tol_rad=np.pi/8):
+tol_rad=4/48
+def is_region_horizontal(region, angles_matrix, tol_rad=tol_rad):
     """Detect horizontal region by looking at gradient is vertical"""
     region_angles = angles_matrix[region[:, 0], region[:, 1]]
 
@@ -130,7 +130,7 @@ def is_region_horizontal(region, angles_matrix, tol_rad=np.pi/8):
     diff_from_vertical = np.abs(np.abs(mean_angle) - np.pi/2)
     return diff_from_vertical <= tol_rad
 
-def is_region_vertical(region, angle, tolerance=np.pi/8):
+def is_region_vertical(region, angle, tolerance=tol_rad):
     mean_angle = np.mean(angle[region])
     mean_angle = mean_angle % np.pi 
     is_vertical = (mean_angle <= tolerance) or (mean_angle >= (np.pi - tolerance))
@@ -155,12 +155,12 @@ def anamoly_detection_LSD(patch) -> dict:
             
     return {"horizontal": has_horizontal, "other": has_other}
 
-from test_methods import compare_method_to_annotations as eval_method
+from test_method_enhanced import compare_method_to_annotations as eval_method
 from diffusion_residual import compute_diffusion_residual
 
 
 def LSD_method(patch_path):
     return anamoly_detection_LSD(load_patch(patch_path,None,None))
-    #return anamoly_detection_LSD(compute_diffusion_residual(patch_path,1))
+    #return anamoly_detection_LSD(compute_diffusion_residual(patch_path,5))
 
 eval_method(LSD_method)
