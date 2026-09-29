@@ -93,10 +93,13 @@ def get_tabular_data_from_img(image: torch.Tensor) -> pl.DataFrame:
         .unpivot(index="y", variable_name="x", value_name="intensity")
         .with_columns(pl.col("x").str.split(by="=").list[1].alias("x"))
         .with_columns(
-            (pl.max_horizontal(pl.col("intensity"), 0) ** 2).alias("weights")
+                pl.when(pl.col("intensity") > 0)
+                .then(np.exp(pl.col("intensity")) - 1)
+                .otherwise(0.0)
+                .alias("weights")
+            )
+            .filter(pl.col("weights") > 55) # Ajuste ce seuil pour filtrer ce qui est trop faible
         )
-        .filter(pl.col("weights") > 0) # TODO: voir une manière encore plus stricte de filtrer.
-    )
 
 # -----------------------------------------------------------------------------
 # Visualisation
@@ -204,7 +207,7 @@ def predict_sample(original_image, reconstructed_image):
     print(image_path.split('\\')[-1])
     print("\n")
 
-    if (diff > 0.1) & (slope > 0.1):
+    if (diff > 1) & (slope > 0.1):
         h_pred = False
         o_pred = False
     
@@ -228,6 +231,17 @@ def prediction_pipeline(
     image_path: str,
     show: bool = False,
 ) -> dict[str, dict[str, bool]]:
+    """
+    Prediction pipeline. Take an image path as input and return predictions.
+
+    Args:
+        - image_path (str) -> path of the image to classify
+        - show (bool) -> for development purpose only (helps to visualize the results of LR)
+    
+    Returns:
+        - Formatted inference for the input image (dict[str, dict[str, bool]])
+    """
+    
     x0, x0_hat = get_original_image_and_reconstructed(
         model_path=model_path,
         image_path=image_path,
