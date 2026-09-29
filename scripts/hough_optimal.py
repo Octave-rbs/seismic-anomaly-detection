@@ -19,7 +19,7 @@ from inference import (
 )
 
 from reconstruct_test_patch import resolve, load_patch
-from test_methods import compare_method_to_annotations
+from test_method_enhanced import compare_method_to_annotations
 from image_postprocessing import box_convolution
 
 
@@ -57,10 +57,7 @@ def detect_lines(error):
 
     binary = error > threshold
 
-    # Hough classique
     hspace, angles, distances = hough_line(binary)
-
-    # Recherche des pics dans l'accumulateur
     accum, peak_angles, peak_distances = hough_line_peaks(
         hspace,
         angles,
@@ -73,8 +70,7 @@ def detect_lines(error):
     other = []
 
     for score, theta, rho in zip(accum, peak_angles, peak_distances):
-        # theta = angle de la normale
-        # donc angle de la ligne :
+        # puisque theta = angle de la normale
         line_angle = np.degrees(theta + np.pi / 2)
 
         # ramener entre -90° et +90°
@@ -166,11 +162,9 @@ def draw_detection(
             linewidth=2,
         )
 
-    # Horizontal lines
     for line_angle, theta, rho, score in horizontal:
         draw_hough_line(theta, rho, "horizontal")
 
-    # Oblique lines
     for line_angle, theta, rho, score in other:
         draw_hough_line(theta, rho, "other")
 
@@ -209,7 +203,6 @@ def identify_lines_with_hough(
     timesteps = make_ddim_timesteps(ddim_steps, T, t_start)
     x0_hat, _ = reverse_diffusion_ddim(xt, timesteps, model, schedule)
 
-    # Reconstruction error
     x0_np = x0.squeeze().cpu().numpy()
     x0_hat_np = x0_hat.squeeze().cpu().numpy()
     error = np.abs(x0_np - x0_hat_np)
@@ -219,10 +212,8 @@ def identify_lines_with_hough(
             box_convolution(error, kernel_size=10, theta=0.0, sigma=100).cpu().numpy()
         )
 
-    # Hough detection
     binary, horizontal, other = detect_lines(error)
 
-    # Visualization
     if visualize:
         draw_detection(
             error,
@@ -262,4 +253,4 @@ if __name__ == "__main__":
         preprocess=False,
         visualize=True,
     )
-    # evaluate_hough_method()
+    evaluate_hough_method()

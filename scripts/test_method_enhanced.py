@@ -4,10 +4,12 @@ import numpy as np
 import matplotlib.pyplot as plt
 from tqdm import tqdm
 
-from linear_reg import prediction_pipeline
-
-DATASET_DIR = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))),"dataset")
-FILE_DIR = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))),"dataset/test")
+DATASET_DIR = os.path.join(
+    os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "dataset"
+)
+FILE_DIR = os.path.join(
+    os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "dataset/test"
+)
 
 # The four mutually exclusive classes: (horizontal, other) -> class name
 COMBINATIONS = {
@@ -28,6 +30,7 @@ def load_annotations(path: str) -> dict:
     with open(path, "r") as f:
         return json.load(f)
 
+
 def load_patch(path: str) -> np.ndarray:
     """
     Load a patch and standardize it (zero mean, unit variance).
@@ -35,20 +38,24 @@ def load_patch(path: str) -> np.ndarray:
     patch = np.load(path).astype(np.float32).squeeze()
     return (patch - patch.mean()) / (patch.std() + 1e-8)
 
+
 def to_class(horizontal: bool, other: bool) -> str:
     """Map a (horizontal, other) pair to its combination class name."""
     return COMBINATIONS[(bool(horizontal), bool(other))]
+
 
 def safe_div(num: float, den: float) -> float:
     """Division returning 0.0 instead of raising when the denominator is 0."""
     return float(num) / float(den) if den else 0.0
 
+
 def compute_f1(tp: int, fp: int, fn: int) -> float:
     """F1-score of a single class from its confusion matrix counts."""
     return safe_div(2 * tp, 2 * tp + fp + fn)
 
+
 def compare_method_to_annotations(
-    method = lambda x : {'horizontal':False,'other':False},
+    method=lambda x: {"horizontal": False, "other": False},
     show: bool = False,
 ) -> dict[str, dict]:
     """
@@ -114,7 +121,9 @@ def compare_method_to_annotations(
         )
 
     macro_f1 = float(np.mean(list(f1_scores.values())))
-    weighted_f1 = float(np.average(list(f1_scores.values()), weights=list(supports.values())))
+    weighted_f1 = float(
+        np.average(list(f1_scores.values()), weights=list(supports.values()))
+    )
 
     print("\n" + "=" * 78)
     print("F1-score")
@@ -138,7 +147,9 @@ def compare_method_to_annotations(
                 paths = results[cls][f"{kind}_paths"]
                 if paths:
                     path = paths[int(np.random.rand() * len(paths))]
-                    plt.title(f"true={annotations[os.path.basename(path)]} pred={cls} ({kind})")
+                    plt.title(
+                        f"true={annotations[os.path.basename(path)]} pred={cls} ({kind})"
+                    )
                     plt.imshow(load_patch(path), origin="lower")
                     plt.show()
 
@@ -146,4 +157,6 @@ def compare_method_to_annotations(
 
 
 if __name__ == "__main__":
+    from linear_reg import prediction_pipeline
+
     compare_method_to_annotations(method=prediction_pipeline, show=SHOW)
