@@ -140,7 +140,7 @@ def anamoly_detection_LSD(patch_path: str, mean=None, std=None) -> dict:
     has_other = False
     
     for region in regions:
-        if is_region_horizontal(region, angle, tolerance_deg=15):
+        if is_region_horizontal(region, angle, tol_rad=15):
             has_horizontal = True
         else:
             has_other = True
