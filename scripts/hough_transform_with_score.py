@@ -42,6 +42,7 @@ from inference import (
 
 from reconstruct_test_patch import resolve, load_patch
 from test_methods import compare_method_to_annotations
+from image_postprocessing import box_convolution
 
 
 ### Parameters ###
@@ -178,6 +179,7 @@ def identify_lines_with_hough(
     ddim_steps: int,
     device: str,
     seed: int,
+    preprocess: bool = False,
     visualize: bool = True,
 ):
 
@@ -199,6 +201,11 @@ def identify_lines_with_hough(
     x0_np = x0.squeeze().cpu().numpy()
     x0_hat_np = x0_hat.squeeze().cpu().numpy()
     error = np.abs(x0_np - x0_hat_np)
+
+    if preprocess:
+        error = (
+            box_convolution(error, kernel_size=10, theta=0.0, sigma=100).cpu().numpy()
+        )
 
     # Calculate score of 50 random lines
     random_lines_scores = []
@@ -258,6 +265,7 @@ if __name__ == "__main__":
         ddim_steps=DDIM_STEPS,
         device=DEVICE,
         seed=SEED,
+        preprocess=False,
         visualize=True,
     )
     evaluate_hough_method()
