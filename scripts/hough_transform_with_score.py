@@ -49,7 +49,9 @@ from test_methods import compare_method_to_annotations
 MODEL = "models/unet64.pt"
 TEST_DIR = "dataset/test"
 # IMAGE = "patch_9107_22.npy"  # Horizontal
-IMAGE = "patch_9150_13.npy"  # Other
+# IMAGE = "patch_9150_13.npy"  # Other
+# IMAGE = "patch_9998_20.npy"  # Nothing
+IMAGE = "patch_9998_11.npy"
 T_START = 600
 DDIM_STEPS = 6
 SEED = 0
@@ -67,7 +69,7 @@ size_image = load_patch(image_path, 0, 1).shape[0]
 # Hyperparameters for Hough transform
 HOUGH_THRESHOLD = 3  # minimum number of perfectly aligned pixels to consider a line
 HOUGH_LINE_LENGTH = size_image // 3  # minimum length of a line segment to be accepted
-HOUGH_LINE_GAP = size_image // 6  # maximum gap between points to be the same line
+HOUGH_LINE_GAP = size_image // 10  # maximum gap between points to be the same line
 BACKGROUND_THRESHOLD_PERCENTILE = 97  # threshold percentile to create the binary image
 
 
@@ -111,8 +113,6 @@ def detect_lines(error, random_lines_scores):
         dy = y2 - y1
 
         angle = np.degrees(np.arctan2(dy, dx))
-
-        # ramener dans [-90, 90]
         if angle > 90:
             angle -= 180
         elif angle < -90:
