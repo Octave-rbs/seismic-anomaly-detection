@@ -41,6 +41,7 @@ from inference import (
 )
 
 from reconstruct_test_patch import resolve, load_patch
+from test_methods import compare_method_to_annotations
 
 
 ### Parameters ###
@@ -48,7 +49,9 @@ from reconstruct_test_patch import resolve, load_patch
 MODEL = "models/unet64.pt"
 TEST_DIR = "dataset/test"
 # IMAGE = "patch_9107_22.npy"  # Horizontal
-IMAGE = "patch_9150_13.npy"  # Other
+# IMAGE = "patch_9150_13.npy"  # Other
+# IMAGE = "patch_9998_20.npy"  # Nothing
+IMAGE = "patch_9998_11.npy"
 T_START = 600
 DDIM_STEPS = 6
 SEED = 0
@@ -66,7 +69,7 @@ size_image = load_patch(image_path, 0, 1).shape[0]
 # Hyperparameters for Hough transform
 HOUGH_THRESHOLD = 3  # minimum number of perfectly aligned pixels to consider a line
 HOUGH_LINE_LENGTH = size_image // 3  # minimum length of a line segment to be accepted
-HOUGH_LINE_GAP = size_image // 6  # maximum gap between points to be the same line
+HOUGH_LINE_GAP = size_image // 10  # maximum gap between points to be the same line
 BACKGROUND_THRESHOLD_PERCENTILE = 97  # threshold percentile to create the binary image
 
 
@@ -110,8 +113,6 @@ def detect_lines(error, random_lines_scores):
         dy = y2 - y1
 
         angle = np.degrees(np.arctan2(dy, dx))
-
-        # ramener dans [-90, 90]
         if angle > 90:
             angle -= 180
         elif angle < -90:
@@ -121,10 +122,10 @@ def detect_lines(error, random_lines_scores):
         score = line_score(error, line, threshold)
         print("Score of line", line, ":", score)
         print(
-            "95th percentile of random lines scores:",
-            np.percentile(random_lines_scores, 95),
+            "99th percentile of random lines scores:",
+            np.percentile(random_lines_scores, 99),
         )
-        if score < np.percentile(random_lines_scores, 95):
+        if score < np.percentile(random_lines_scores, 99):
             continue
 
         if abs(angle) <= 10:
@@ -228,7 +229,25 @@ def identify_lines_with_hough(
             horizontal,
             other,
         )
-    return {image_path: {"horizontal": len(horizontal) > 0, "other": len(other) > 0}}
+    return {"horizontal": len(horizontal) > 0, "other": len(other) > 0}
+
+
+def evaluate_hough_for_image(image):
+    result = identify_lines_with_hough(
+        model_path=resolve(MODEL),
+        image_path=image,
+        t_start=T_START,
+        ddim_steps=DDIM_STEPS,
+        device=DEVICE,
+        seed=SEED,
+        visualize=False,
+    )
+    return result
+
+
+def evaluate_hough_method():
+    results = compare_method_to_annotations(method=evaluate_hough_for_image, show=True)
+    return results
 
 
 if __name__ == "__main__":
@@ -241,3 +260,4 @@ if __name__ == "__main__":
         seed=SEED,
         visualize=True,
     )
+    evaluate_hough_method()
