@@ -52,7 +52,8 @@ TEST_DIR = "dataset/test"
 # IMAGE = "patch_9107_22.npy"  # Horizontal
 # IMAGE = "patch_9150_13.npy"  # Other
 # IMAGE = "patch_9998_20.npy"  # Nothing
-IMAGE = "patch_9998_11.npy"
+# IMAGE = "patch_9998_11.npy" # Other
+IMAGE = "patch_9103_10.npy"  # Can't detect "other"
 T_START = 600
 DDIM_STEPS = 6
 SEED = 0
@@ -106,7 +107,6 @@ def detect_lines(error, random_lines_scores):
 
     horizontal = []
     other = []
-
     # 3. Classify lines
     for line in lines:
         (x1, y1), (x2, y2) = line
@@ -132,7 +132,7 @@ def detect_lines(error, random_lines_scores):
         if abs(angle) <= 10:
             horizontal.append((line, angle, length))
 
-        elif abs(angle) < 80:
+        elif abs(angle) < 75:
             other.append((line, angle, length))
 
     return binary, horizontal, other
