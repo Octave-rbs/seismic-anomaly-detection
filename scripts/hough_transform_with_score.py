@@ -92,12 +92,9 @@ def line_score(error, line, threshold):
 
 def detect_lines(error, random_lines_scores):
 
-    # 1. Thresholding to create the binary image for Hough transform
-    # TODO: Apply first preprocessing if we find one useful
     threshold = np.percentile(error, BACKGROUND_THRESHOLD_PERCENTILE)
     binary = error > threshold  # where error > 97th percentile of errors
 
-    # 2. Hough
     lines = probabilistic_hough_line(
         binary,
         threshold=HOUGH_THRESHOLD,
@@ -107,7 +104,6 @@ def detect_lines(error, random_lines_scores):
 
     horizontal = []
     other = []
-    # 3. Classify lines
     for line in lines:
         (x1, y1), (x2, y2) = line
         dx = x2 - x1
