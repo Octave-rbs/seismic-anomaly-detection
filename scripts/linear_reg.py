@@ -98,8 +98,12 @@ def get_tabular_data_from_img(image: torch.Tensor) -> pl.DataFrame:
                 .otherwise(0.0)
                 .alias("weights")
             )
-            .filter(pl.col("weights") > 55) # Ajuste ce seuil pour filtrer ce qui est trop faible
-        )
+        .with_columns(
+            (pl.col("weights") / pl.col("weights").max()).alias("min_max_norm_weights")
+        ).filter(
+            pl.col("min_max_norm_weights") > (np.exp(4) /pl.col("weights").max())
+        ) # Ajuste ce seuil pour filtrer ce qui est trop faible
+    )
 
 # -----------------------------------------------------------------------------
 # Visualisation
@@ -183,7 +187,7 @@ def predict_sample(original_image, reconstructed_image):
 
     X_origin = Xy_origin["x"].cast(pl.Float32).to_numpy().reshape(-1, 1)
     y_origin = Xy_origin["y"].cast(pl.Float32).to_numpy()
-    w_origin = Xy_origin["weights"].to_numpy()
+    w_origin = Xy_origin["min_max_norm_weights"].to_numpy()
 
     X_reco = Xy_reco["x"].cast(pl.Float32).to_numpy().reshape(-1, 1)
     y_reco = Xy_reco["y"].cast(pl.Float32).to_numpy()
@@ -194,9 +198,7 @@ def predict_sample(original_image, reconstructed_image):
         y_origin, reg_origin.predict(X_origin), sample_weight=w_origin
     )
     
-    # ici réfléchir au fait qu'on weight l'origin mais pas la reco
     reconstructed_error = root_mean_squared_error(y_reco, reg_origin.predict(X_reco))
-    
     diff = abs(round(reconstructed_error - original_error, 3))
     slope = round(reg_origin.coef_[0], 3)
 
@@ -207,13 +209,18 @@ def predict_sample(original_image, reconstructed_image):
     print(image_path.split('\\')[-1])
     print("\n")
 
-    if (diff > 1) & (slope > 0.1):
+    if (diff < 2):
         h_pred = False
         o_pred = False
-    
+    elif (np.abs(slope) < 0.02): # we don't want the pixels to be on 2 lines (a < 1/48):
+        h_pred = True
+        o_pred = False
+    elif (np.abs(slope) > 0.02) & (reconstructed_error > 2):
+        h_pred = True
+        o_pred = True
     else:
         h_pred = False
-        o_pred = False
+        o_pred = True
 
     prediction = dict(
         {
@@ -241,7 +248,7 @@ def prediction_pipeline(
     Returns:
         - Formatted inference for the input image (dict[str, dict[str, bool]])
     """
-    
+
     x0, x0_hat = get_original_image_and_reconstructed(
         model_path=model_path,
         image_path=image_path,
