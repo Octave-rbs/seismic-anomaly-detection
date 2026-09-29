@@ -22,7 +22,7 @@ from inference import (
 #Utilities
 def load_patch(path: str, mean: float | None, std: float | None) -> np.ndarray:
     """
-    Load a (H, W) or (1, H, W) patch and normalize it as NoisePatchDataset.
+    Load a (H, W) or (1, H, W) patch and normalize it
     """
     patch = np.load(path).astype(np.float32).squeeze()
     if patch.ndim != 2:
@@ -81,18 +81,18 @@ def region_growing(mag, angle):
     y_coords, x_coords = np.unravel_index(flat_indices, (f, t))
 
     #We ignore lowest magnitude gradient as probably not in a defined line
-    min_mag = np.percentile(mag, 50) 
+    min_mag = np.mean(mag)+np.std(mag)
 
     #Compute the theoretical limit of significant region size (vs random noise region size)
-
-    N_test = (f * t) ** 2.5 
+    N_images = 502 # dataset size as we want no false anomally on all set
+    N_test = (f * t) ** 2.5 * N_images
     
     # Random alignement probability
-    p = tau / np.pi 
+    p = tau / (np.pi) 
     
     # NFA lower bound (Number of false Alarm) we want to have average number of false region <1
     min_pixels_nfa = int(np.ceil(-np.log10(N_test) / np.log10(p)))
-    
+
     for y, x in zip(y_coords, x_coords):
         if used[y, x] or mag[y, x] < min_mag:
             continue
@@ -126,26 +126,41 @@ def is_region_horizontal(region, angles_matrix, tol_rad=np.pi/8):
     """Detect horizontal region by looking at gradient is vertical"""
     region_angles = angles_matrix[region[:, 0], region[:, 1]]
 
-    median_angle = np.median(region_angles)
-    diff_from_vertical = np.abs(np.abs(median_angle) - np.pi/2)
+    mean_angle = np.mean(region_angles)
+    diff_from_vertical = np.abs(np.abs(mean_angle) - np.pi/2)
     return diff_from_vertical <= tol_rad
 
+def is_region_vertical(region, angle, tolerance=np.pi/8):
+    mean_angle = np.mean(angle[region])
+    mean_angle = mean_angle % np.pi 
+    is_vertical = (mean_angle <= tolerance) or (mean_angle >= (np.pi - tolerance))
+    return is_vertical
 
-def anamoly_detection_LSD(patch_path: str, mean=None, std=None) -> dict:
-    patch = load_patch(patch_path, mean, std)
+
+def anamoly_detection_LSD(patch) -> dict:
     norm, angle = gradient_calculator(patch)
     regions = region_growing(norm, angle)
     
     has_horizontal = False
     has_other = False
-    
+
     for region in regions:
-        if is_region_horizontal(region, angle, tol_rad=15):
+        if is_region_horizontal(region, angle):
             has_horizontal = True
-        else:
+        elif not is_region_vertical(region, angle):
             has_other = True
-            
+
         if has_horizontal and has_other:
             break
             
     return {"horizontal": has_horizontal, "other": has_other}
+
+from test_methods import compare_method_to_annotations as eval_method
+from diffusion_residual import compute_diffusion_residual
+
+
+def LSD_method(patch_path):
+    return anamoly_detection_LSD(load_patch(patch_path,None,None))
+    #return anamoly_detection_LSD(compute_diffusion_residual(patch_path,1))
+
+eval_method(LSD_method)
