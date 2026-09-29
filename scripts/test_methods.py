@@ -2,6 +2,7 @@ import os
 import json
 import numpy as np
 import matplotlib.pyplot as plt
+from tqdm import tqdm
 
 DATASET_DIR = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))),"dataset")
 FILE_DIR = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))),"dataset/test")
@@ -26,7 +27,7 @@ def compare_method_to_annotations(method = lambda x : {'horizontal':False,'other
     annotations = load_annotations(ANNOTATIONS)
     results = {'horizontal_false_+':[0,[]],'horizontal_false_-':[0,[]],'other_false_+':[0,[]],'other_false_-':[0,[]]}
 
-    for file,annot in annotations.items():
+    for file, annot in tqdm(annotations.items(), desc="Processing annotations"):
         path = os.path.join(FILE_DIR, file)
         pred = method(path)
 
@@ -57,5 +58,5 @@ def compare_method_to_annotations(method = lambda x : {'horizontal':False,'other
     print('Other accuracy : ', other_acc)
 
 
-# compare_method_to_annotations()
+compare_method_to_annotations()
     
