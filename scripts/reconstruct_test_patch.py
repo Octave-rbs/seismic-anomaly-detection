@@ -13,6 +13,14 @@ Usage: set the parameters in the "Parameters" section below, then run
 import sys
 import os
 
+from pathlib import Path
+
+print("--- DEBUG INFO ---")
+print("File location:", __file__)
+print("Current working directory:", Path.cwd())
+print("Python search path (sys.path):", sys.path)
+print("------------------")
+
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.append(os.path.join(ROOT, "src"))
 
