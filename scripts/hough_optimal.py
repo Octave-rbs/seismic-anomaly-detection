@@ -32,8 +32,8 @@ TEST_DIR = "dataset/test"
 # IMAGE = "patch_9998_20.npy"  # Nothing
 # IMAGE = "patch_9998_11.npy"  # Other
 IMAGE = "patch_9103_10.npy"
-T_START = 600
-DDIM_STEPS = 6
+T_START = 800
+DDIM_STEPS = 4
 SEED = 0
 DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
 test_dir = resolve(TEST_DIR)
@@ -73,7 +73,7 @@ def detect_lines(error):
         # puisque theta = angle de la normale
         line_angle = np.degrees(theta + np.pi / 2)
 
-        # ramener entre -90° et +90°
+        # ramener entre -90 et 90 degrés
         if line_angle > 90:
             line_angle -= 180
         elif line_angle < -90:
@@ -187,25 +187,29 @@ def identify_lines_with_hough(
     seed: int,
     preprocess: bool = False,
     visualize: bool = True,
+    diffusion: bool = True,
 ):
+    if diffusion:
+        model, schedule = load_diffusion_model(model_path, device)
+        hparams = torch.load(model_path, map_location="cpu")["hparams"]
+        T = schedule.timesteps
 
-    model, schedule = load_diffusion_model(model_path, device)
-    hparams = torch.load(model_path, map_location="cpu")["hparams"]
-    T = schedule.timesteps
+        image = load_patch(image_path, hparams["data_mean"], hparams["data_std"])
+        x0 = torch.from_numpy(image)[None, None].to(device)
+        torch.manual_seed(seed)
+        t = torch.tensor([t_start], device=device)
+        xt, _ = diffuse(x0, t, schedule)
 
-    image = load_patch(image_path, hparams["data_mean"], hparams["data_std"])
-    x0 = torch.from_numpy(image)[None, None].to(device)
-    torch.manual_seed(seed)
-    t = torch.tensor([t_start], device=device)
-    xt, _ = diffuse(x0, t, schedule)
+        ddim_steps = min(ddim_steps, t_start + 1)
+        timesteps = make_ddim_timesteps(ddim_steps, T, t_start)
+        x0_hat, _ = reverse_diffusion_ddim(xt, timesteps, model, schedule)
 
-    ddim_steps = min(ddim_steps, t_start + 1)
-    timesteps = make_ddim_timesteps(ddim_steps, T, t_start)
-    x0_hat, _ = reverse_diffusion_ddim(xt, timesteps, model, schedule)
-
-    x0_np = x0.squeeze().cpu().numpy()
-    x0_hat_np = x0_hat.squeeze().cpu().numpy()
-    error = np.abs(x0_np - x0_hat_np)
+        x0_np = x0.squeeze().cpu().numpy()
+        x0_hat_np = x0_hat.squeeze().cpu().numpy()
+        error = np.abs(x0_np - x0_hat_np)
+    else:
+        image = load_patch(image_path, 0, 1)
+        error = image
 
     if preprocess:
         error = (
@@ -224,7 +228,7 @@ def identify_lines_with_hough(
     return {"horizontal": len(horizontal) > 0, "other": len(other) > 0}
 
 
-def evaluate_hough_for_image(image):
+def evaluate_hough_for_image(image, diffusion=True):
     result = identify_lines_with_hough(
         model_path=resolve(MODEL),
         image_path=image,
@@ -233,12 +237,17 @@ def evaluate_hough_for_image(image):
         device=DEVICE,
         seed=SEED,
         visualize=False,
+        diffusion=diffusion,
     )
     return result
 
 
-def evaluate_hough_method():
-    results = compare_method_to_annotations(method=evaluate_hough_for_image, show=True)
+def evaluate_hough_method(diffusion=True):
+    method = lambda image: evaluate_hough_for_image(image, diffusion=diffusion)
+    results = compare_method_to_annotations(
+        method=method,
+        show=True,
+    )
     return results
 
 
@@ -252,5 +261,6 @@ if __name__ == "__main__":
         seed=SEED,
         preprocess=False,
         visualize=True,
+        diffusion=False,
     )
-    evaluate_hough_method()
+    evaluate_hough_method(diffusion=True)
