@@ -201,7 +201,7 @@ def compute_diffusion_residual(
     model: torch.nn.Module | None = None,
     schedule: DiffusionSchedule | None = None,
     model_name_or_path: str = "models/unet32.pt",
-    t_start: int = 600,
+    t_start: int = 800,
     ddim_steps: int = 6,
     num_samples: int = 1,
     seed: int | None = 0,
@@ -257,7 +257,8 @@ def compute_diffusion_residual(
     diff = x0_np - x0_hat_np
     pos_diff = np.maximum(0.0, diff)
     residual = pos_diff / (1.0 + np.abs(x0_hat_np))
-
+    smoothed_residual=apply_mean_smoothing(residual,3)
+    return residual +2*(smoothed_residual.astype(np.float32))
     return residual.astype(np.float32)
 
 
@@ -276,6 +277,22 @@ def compute_residual_with_details(
 
     return residual.astype(np.float32), x0_np, x0_hat_np
 
+# -----------------------------------------------------------------------------
+# Smoothing functions
+# -----------------------------------------------------------------------------
+
+from scipy.ndimage import gaussian_filter
+from scipy.ndimage import median_filter
+from scipy.ndimage import uniform_filter
+
+def apply_gaussian_smoothing(residual: np.ndarray, sigma: float = 1.0) -> np.ndarray:
+    return gaussian_filter(residual, sigma=sigma)
+
+def apply_median_smoothing(residual: np.ndarray, size: int = 3) -> np.ndarray:
+    return median_filter(residual, size=size)
+
+def apply_mean_smoothing(residual: np.ndarray, size: int = 3) -> np.ndarray:
+    return uniform_filter(residual, size=size)
 
 # -----------------------------------------------------------------------------
 # Visualization
@@ -285,18 +302,19 @@ def plot_diffusion_result(
     model: torch.nn.Module | None = None,
     schedule: DiffusionSchedule | None = None,
     model_name_or_path: str = "models/unet32.pt",
-    t_start: int = 600,
+    t_start: int = 750,
     ddim_steps: int = 6,
     num_samples: int = 1,
     seed: int | None = 0,
     device: str | torch.device | None = None,
     show: bool = True,
-) -> Tuple[plt.Figure, Tuple[np.ndarray, np.ndarray, np.ndarray]]:
+) -> Tuple[plt.Figure, Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]]:
     """
-    Purify a patch and display a 3-panel comparative figure:
+    Purify a patch and display a 4-panel comparative figure:
     1. Original normalized spectrogram patch (frequency y vs time x)
     2. DDIM background reconstruction
     3. Positive normalized anomaly residual map
+    4. Smoothed residual map (Median filter)
 
     Parameters
     ----------
@@ -322,7 +340,7 @@ def plot_diffusion_result(
     Returns
     -------
     fig : matplotlib.figure.Figure
-    (residual, original_normalized, reconstruction) : Tuple[np.ndarray, np.ndarray, np.ndarray]
+    (residual, smooth_residual, original_normalized, reconstruction) : Tuple of np.ndarray
     """
     residual, x0_np, x0_hat_np = compute_residual_with_details(
         patch_or_path=patch_or_path,
@@ -335,6 +353,9 @@ def plot_diffusion_result(
         seed=seed,
         device=device,
     )
+
+    # Compute the smoothed residual
+    smooth_residual = residual + apply_mean_smoothing(residual, size=3)
 
     # Check for annotations to enrich figure title
     label_info = ""
@@ -353,7 +374,8 @@ def plot_diffusion_result(
             except Exception:
                 pass
 
-    fig, axes = plt.subplots(1, 3, figsize=(14, 4.2))
+    # Changed from 1x3 to 1x4 and increased width to 18
+    fig, axes = plt.subplots(1, 4, figsize=(18, 4.2))
 
     # Shared dynamic range for original and reconstruction
     vmin = min(x0_np.min(), x0_hat_np.min())
@@ -377,13 +399,20 @@ def plot_diffusion_result(
     axes[2].set_ylabel("Fréquence (y)")
     fig.colorbar(im2, ax=axes[2], fraction=0.046, pad=0.04)
 
+    # 4th panel for smoothed residual
+    im3 = axes[3].imshow(smooth_residual, origin="lower", cmap="magma")
+    axes[3].set_title("4. Résidu lissé")
+    axes[3].set_xlabel("Temps (x)")
+    axes[3].set_ylabel("Fréquence (y)")
+    fig.colorbar(im3, ax=axes[3], fraction=0.046, pad=0.04)
+
     fig.suptitle(f"{patch_name}{label_info}\n(Modèle: {os.path.basename(model_name_or_path)}, t_start={t_start}, steps={ddim_steps})", fontsize=11)
     plt.tight_layout()
 
     if show:
         plt.show()
 
-    return fig, (residual, x0_np, x0_hat_np)
+    return fig, (residual, smooth_residual, x0_np, x0_hat_np)
 
 
 # -----------------------------------------------------------------------------
@@ -391,7 +420,7 @@ def plot_diffusion_result(
 # -----------------------------------------------------------------------------
 if __name__ == "__main__":
     # Test patch with horizontal anomaly
-    test_patch = resolve("dataset/test/patch_9351_13.npy")
+    test_patch = resolve("dataset/test/patch_9099_13.npy")
     if not os.path.exists(test_patch):
         test_dir = resolve("dataset/test")
         all_files = [f for f in os.listdir(test_dir) if f.endswith(".npy")]
@@ -399,15 +428,40 @@ if __name__ == "__main__":
 
     print(f"[INFO] Exécution de plot_diffusion_result sur : {os.path.basename(test_patch)}")
 
-    fig, (res, orig, reco) = plot_diffusion_result(
+    # Make sure to unpack 4 variables now instead of 3
+    fig, (res, res_smooth, orig, reco) = plot_diffusion_result(
         test_patch,
         model_name_or_path="models/unet64.pt",
-        t_start=1000,
-        ddim_steps=6,
+        t_start=700,
+        ddim_steps=4,
         num_samples=1,
         show=True,
     )
 
     print(f"[INFO] Dimensions : {res.shape}")
     print(f"[INFO] Min résidu: {res.min():.4f}, Max: {res.max():.4f}, Moyenne: {res.mean():.4f}")
+    print(f"[INFO] Min résidu lissé: {res_smooth.min():.4f}, Max: {res_smooth.max():.4f}, Moyenne: {res_smooth.mean():.4f}")
     print("[INFO] Démonstration terminée avec succès !")
+
+    test_patch = resolve("dataset/test/patch_9107_22.npy")
+    if not os.path.exists(test_patch):
+        test_dir = resolve("dataset/test")
+        all_files = [f for f in os.listdir(test_dir) if f.endswith(".npy")]
+        test_patch = os.path.join(test_dir, all_files[0])
+
+    print(f"[INFO] Exécution de plot_diffusion_result sur : {os.path.basename(test_patch)}")
+
+    # Make sure to unpack 4 variables now instead of 3
+    fig, (res, res_smooth, orig, reco) = plot_diffusion_result(
+        test_patch,
+        model_name_or_path="models/unet64.pt",
+        t_start=700,
+        ddim_steps=4,
+        num_samples=1,
+        show=True,
+    )
+
+    print(f"[INFO] Dimensions : {res.shape}")
+    print(f"[INFO] Min résidu: {res.min():.4f}, Max: {res.max():.4f}, Moyenne: {res.mean():.4f}")
+    print(f"[INFO] Min résidu lissé: {res_smooth.min():.4f}, Max: {res_smooth.max():.4f}, Moyenne: {res_smooth.mean():.4f}")
+    print("[INFO] Démonstration terminée avec succès !")    
